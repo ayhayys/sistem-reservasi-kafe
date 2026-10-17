@@ -3,13 +3,14 @@
 namespace App\Http\Controllers;
 
 use Illuminate\Http\Request;
-// Pastikan semua model di bawah ini ter-import agar tidak terjadi error "Class not found"
 use App\Models\Menu;
 use App\Models\Category;
 use App\Models\Table;
 use App\Models\Reservation;
 use App\Models\Order;
+use App\Models\OrderItem;
 use Illuminate\Support\Str;
+use Illuminate\Support\Facades\DB;
 
 class CustomerController extends Controller
 {
@@ -32,7 +33,6 @@ class CustomerController extends Controller
         $time = $request->get('time', '17:00');
         $selectedTableId = $request->get('table_id');
 
-        // Mengambil ID meja yang sudah di-booking
         $reservedTableIds = Reservation::where('date', $date)
             ->where('time', $time)
             ->whereIn('status', ['pending', 'confirmed'])
@@ -97,12 +97,15 @@ class CustomerController extends Controller
 
     public function history()
     {
-        $reservations = Reservation::with('table')
+        // Mengambil daftar reservasi user beserta relasi meja & pesanan pre-order yang terhubung
+        $reservations = Reservation::with(['table', 'orders'])
             ->where('user_id', auth()->id())
             ->orderBy('created_at', 'desc')
             ->get();
 
-        $orders = Order::where('user_id', auth()->id())
+        // Mengambil daftar pesanan/pre-order user beserta detail item menu & reservasi
+        $orders = Order::with(['orderItems.menu', 'reservation.table'])
+            ->where('user_id', auth()->id())
             ->orderBy('created_at', 'desc')
             ->get();
 
@@ -111,6 +114,70 @@ class CustomerController extends Controller
 
     public function checkout(Request $request)
     {
-        return response()->json(['status' => 'success', 'message' => 'Pesanan berhasil dikonfirmasi']);
+        // 1. Validasi Input Form
+        $request->validate([
+            'cart_data' => 'required',
+            'serve_date' => 'required|date|after_or_equal:today',
+            'payment_method' => 'required|in:cash,transfer',
+        ]);
+
+        // 2. Decode data JSON keranjang dari Javascript
+        $cartData = json_decode($request->input('cart_data'), true);
+
+        if (!$cartData || count($cartData) === 0) {
+            return back()->withErrors(['error' => 'Keranjang pesanan Anda kosong.']);
+        }
+
+        DB::beginTransaction();
+        try {
+            // Hitung Subtotal
+            $subtotal = collect($cartData)->sum(function($item) {
+                return $item['price'] * $item['qty'];
+            });
+
+            // Cari reservasi aktif hari ini
+            $activeReservation = Reservation::where('user_id', auth()->id())
+                ->where('date', '>=', date('Y-m-d'))
+                ->whereIn('status', ['pending', 'confirmed'])
+                ->first();
+
+            // 3. Simpan Tabel Orders
+            $orderNumber = 'ORD-' . date('Ymd') . '-' . strtoupper(Str::random(4));
+            
+            $order = Order::create([
+                'order_number' => $orderNumber,
+                'user_id' => auth()->id(),
+                'reservation_id' => $activeReservation ? $activeReservation->id : null,
+                'serve_date' => $request->serve_date,
+                'subtotal' => $subtotal,
+                'tax' => 0,
+                'total' => $subtotal,
+                'status' => 'pending',
+                'payment_method' => $request->payment_method,
+                // PERBAIKAN: Menggunakan 'unpaid' agar tidak ditolak oleh ENUM database
+                'payment_status' => 'unpaid',
+            ]);
+
+            // 4. Simpan Tabel Order Items (Detail Keranjang)
+            foreach ($cartData as $item) {
+                OrderItem::create([
+                    'order_id' => $order->id,
+                    'menu_id' => $item['id'],
+                    'quantity' => $item['qty'],
+                    'price' => $item['price'],
+                ]);
+            }
+
+            DB::commit();
+
+            // 5. Redirect ke riwayat dan bersihkan cache localStorage keranjang
+            return redirect()->route('history')
+                ->with('clear_cart', true) 
+                ->with('success', 'Pesanan sukses! Nomor Pesanan Anda: ' . $orderNumber);
+
+        } catch (\Exception $e) {
+            DB::rollBack();
+            return back()->withErrors(['error' => 'Sistem gagal menyimpan pesanan: ' . $e->getMessage()]);
+        }
     }
 }

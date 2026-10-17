@@ -9,8 +9,16 @@ class Menu extends Model
 {
     use HasFactory;
 
-    protected $fillable = ['category_id', 'name', 'description', 'price', 'image', 'is_active'];
+    protected $fillable = [
+        'category_id',
+        'name',
+        'description',
+        'price',
+        'image',
+        'is_active',
+    ];
 
+    // Relasi: Setiap Menu dimiliki oleh satu Kategori
     public function category()
     {
         return $this->belongsTo(Category::class);

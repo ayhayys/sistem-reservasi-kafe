@@ -3,10 +3,10 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ config('app.name', 'Kafe Ramadhan') }}</title>
-    <!-- Tailwind CSS (Gunakan Vite di production, ini CDN untuk testing cepat) -->
+    <title>{{ config('Customer Dashboard', 'Pojok Cafe') }}</title>
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <!-- Alpine.js untuk interaktivitas UI & Cart -->
+    <!-- Alpine.js -->
     <script defer src="https://cdn.jsdelivr.net/npm/alpinejs@3.13.3/dist/cdn.min.js"></script>
     <script>
         tailwind.config = {
@@ -23,7 +23,7 @@
         }
     </script>
 </head>
-<body class="bg-darkBg text-white font-sans antialiased" x-data="cartSystem()">
+<body class="bg-darkBg text-white font-sans antialiased">
 
     <!-- Navbar -->
     <nav class="bg-cardBg border-b border-borderDark sticky top-0 z-40">
@@ -56,9 +56,9 @@
                     @endauth
 
                     <!-- Cart Trigger -->
-                    <button @click="cartOpen = true" class="relative text-white hover:text-primary">
+                    <button type="button" onclick="openCart()" class="relative text-white hover:text-primary transition">
                         <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
-                        <span x-show="cartTotalItems > 0" x-text="cartTotalItems" class="absolute -top-2 -right-2 bg-primary text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center"></span>
+                        <span id="cart_badge" class="absolute -top-2 -right-2 bg-primary text-white text-[10px] font-bold rounded-full h-4 w-4 flex items-center justify-center hidden"></span>
                     </button>
                 </div>
             </div>
@@ -75,93 +75,161 @@
         &copy; 2026 Pojok Cafe. Deserves better.
     </footer>
 
-    <!-- Sidebar Keranjang (Cart) -->
-    <div x-show="cartOpen" class="fixed inset-0 z-50 overflow-hidden" style="display: none;">
-        <div x-show="cartOpen" @click="cartOpen = false" class="absolute inset-0 bg-black bg-opacity-50 transition-opacity"></div>
-        <div class="absolute inset-y-0 right-0 max-w-md w-full flex">
-            <div class="h-full flex flex-col bg-cardBg shadow-xl w-full">
-                <div class="px-4 py-6 border-b border-borderDark flex justify-between items-center">
-                    <h2 class="text-lg font-bold text-white">Keranjang Pesanan</h2>
-                    <button @click="cartOpen = false" class="text-gray-400 hover:text-white">&times; Tutup</button>
+    <!-- ========================================== -->
+    <!-- SIDEBAR KERANJANG PESANAN -->
+    <!-- ========================================== -->
+    <div id="cartOverlay" class="fixed inset-0 bg-black bg-opacity-50 z-40 hidden transition-opacity" onclick="closeCart()"></div>
+
+    <div id="cartSidebar" class="fixed top-0 right-0 h-full w-full sm:w-96 bg-cardBg shadow-2xl z-50 transform translate-x-full transition-transform duration-300 ease-in-out flex flex-col">
+        <div class="px-4 py-4 border-b border-borderDark flex justify-between items-center bg-darkBg">
+            <h3 class="text-white font-bold text-lg flex items-center">
+                <svg class="w-5 h-5 mr-2 text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg>
+                Keranjang Pesanan
+            </h3>
+            <button class="text-gray-400 hover:text-red-500 transition" onclick="closeCart()">
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+            </button>
+        </div>
+
+        <div id="cart_items_list" class="flex-1 overflow-y-auto p-4 space-y-4">
+            <!-- Item keranjang masuk ke sini -->
+        </div>
+
+        <form action="{{ route('checkout') }}" method="POST" id="checkoutForm" class="bg-cardBg border-t border-borderDark">
+            @csrf
+            <input type="hidden" name="cart_data" id="cart_data_input">
+            
+            <div class="p-4">
+                <div class="mb-4">
+                    <label class="block text-sm text-gray-300 mb-2">Tanggal Dihidangkan</label>
+                    <input type="date" name="serve_date" required min="{{ date('Y-m-d') }}" 
+                           class="w-full bg-darkBg border border-borderDark rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary">
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm text-gray-300 mb-2">Metode Pembayaran</label>
+                    <select name="payment_method" required 
+                            class="w-full bg-darkBg border border-borderDark rounded-lg px-4 py-2 text-white focus:outline-none focus:border-primary appearance-none">
+                        <option value="cash">Bayar di Tempat (Kasir)</option>
+                        <option value="transfer">Bayar Sekarang (Transfer)</option>
+                    </select>
+                </div>
+
+                <div class="flex justify-between items-center mb-4">
+                    <span class="text-gray-400 font-medium">Total Pembayaran:</span>
+                    <span class="text-white font-bold text-xl" id="cart_total_display">Rp 0</span>
                 </div>
                 
-                <!-- Cart Items -->
-                <div class="flex-1 overflow-y-auto px-4 py-6 space-y-4">
-                    <template x-if="cart.length === 0">
-                        <p class="text-gray-400 text-center mt-10">Keranjang masih kosong.</p>
-                    </template>
-                    <template x-for="item in cart" :key="item.id">
-                        <div class="flex justify-between items-center border-b border-borderDark pb-4">
-                            <div>
-                                <h3 class="text-white font-semibold" x-text="item.name"></h3>
-                                <p class="text-primary text-sm">Rp <span x-text="item.price.toLocaleString('id-ID')"></span></p>
-                            </div>
-                            <div class="flex items-center space-x-3">
-                                <button @click="updateQty(item.id, -1)" class="bg-borderDark px-2 py-1 rounded text-white">-</button>
-                                <span x-text="item.qty"></span>
-                                <button @click="updateQty(item.id, 1)" class="bg-borderDark px-2 py-1 rounded text-white">+</button>
-                            </div>
-                        </div>
-                    </template>
-                </div>
-
-                <!-- Checkout Section -->
-                <div class="border-t border-borderDark px-4 py-6">
-                    <div class="flex justify-between text-lg font-bold mb-4">
-                        <span>Total:</span>
-                        <span>Rp <span x-text="cartTotal.toLocaleString('id-ID')"></span></span>
-                    </div>
-                    @auth
-                        <form method="POST" action="{{ route('checkout') }}">
-                            @csrf
-                            <input type="hidden" name="cart_data" :value="JSON.stringify(cart)">
-                            <button type="submit" class="w-full bg-primary hover:bg-orange-600 text-white font-bold py-3 rounded-lg transition">Checkout Sekarang</button>
-                        </form>
-                    @else
-                        <a href="{{ route('login') }}" class="block text-center w-full bg-borderDark hover:bg-gray-600 text-white font-bold py-3 rounded-lg transition">Login untuk Checkout</a>
-                    @endauth
-                </div>
+                <button type="submit" class="w-full bg-primary hover:bg-orange-600 text-white font-bold py-3 rounded-lg transition shadow-lg flex justify-center items-center">
+                    Checkout Sekarang
+                </button>
             </div>
-        </div>
+        </form>
     </div>
 
-    <!-- Alpine.js Logic -->
+    <!-- ========================================== -->
+    <!-- SCRIPT LOGIKA KERANJANG -->
+    <!-- ========================================== -->
     <script>
-        function cartSystem() {
-            return {
-                cartOpen: false,
-                cart: JSON.parse(localStorage.getItem('kafe_cart') || '[]'),
-                addToCart(menu) {
-                    let existing = this.cart.find(i => i.id === menu.id);
-                    if (existing) {
-                        existing.qty++;
-                    } else {
-                        this.cart.push({ ...menu, qty: 1 });
-                    }
-                    this.saveCart();
-                    this.cartOpen = true;
-                },
-                updateQty(id, change) {
-                    let item = this.cart.find(i => i.id === id);
-                    if (item) {
-                        item.qty += change;
-                        if (item.qty <= 0) {
-                            this.cart = this.cart.filter(i => i.id !== id);
-                        }
-                    }
-                    this.saveCart();
-                },
-                saveCart() {
-                    localStorage.setItem('kafe_cart', JSON.stringify(this.cart));
-                },
-                get cartTotalItems() {
-                    return this.cart.reduce((total, item) => total + item.qty, 0);
-                },
-                get cartTotal() {
-                    return this.cart.reduce((total, item) => total + (item.price * item.qty), 0);
+        let cart = JSON.parse(localStorage.getItem('kafe_cart')) || [];
+
+        // Menghapus data keranjang lokal jika checkout berhasil
+        @if(session('clear_cart'))
+            localStorage.removeItem('kafe_cart');
+            cart = [];
+        @endif
+
+        function openCart() {
+            document.getElementById('cartSidebar').classList.remove('translate-x-full');
+            document.getElementById('cartOverlay').classList.remove('hidden');
+            renderCart(); 
+        }
+
+        function closeCart() {
+            document.getElementById('cartSidebar').classList.add('translate-x-full');
+            document.getElementById('cartOverlay').classList.add('hidden');
+        }
+
+        function addToCart(menu) {
+            let existingItem = cart.find(item => item.id === menu.id);
+            if (existingItem) {
+                existingItem.qty += 1;
+            } else {
+                cart.push({ id: menu.id, name: menu.name, price: menu.price, qty: 1 });
+            }
+            saveCart();
+            openCart();
+        }
+
+        function updateQty(id, change) {
+            let item = cart.find(item => item.id === id);
+            if (item) {
+                item.qty += change;
+                if (item.qty <= 0) {
+                    cart = cart.filter(i => i.id !== id);
                 }
+                saveCart();
             }
         }
+
+        function saveCart() {
+            localStorage.setItem('kafe_cart', JSON.stringify(cart));
+            renderCart();
+        }
+
+        function renderCart() {
+            let cartList = document.getElementById('cart_items_list');
+            let totalDisplay = document.getElementById('cart_total_display');
+            let cartDataInput = document.getElementById('cart_data_input');
+            let cartBadge = document.getElementById('cart_badge');
+            
+            if(!cartList) return;
+
+            cartList.innerHTML = '';
+            let total = 0;
+            let totalItemsCount = 0;
+
+            if (cart.length === 0) {
+                cartList.innerHTML = '<div class="text-center text-gray-500 mt-10"><svg class="w-12 h-12 mx-auto mb-2 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z"></path></svg><p>Keranjang masih kosong</p></div>';
+                if(cartBadge) cartBadge.classList.add('hidden');
+            } else {
+                cart.forEach(item => {
+                    total += item.price * item.qty;
+                    totalItemsCount += item.qty;
+                    
+                    cartList.innerHTML += `
+                        <div class="flex justify-between items-center bg-darkBg p-3 rounded-lg border border-borderDark">
+                            <div class="flex-1">
+                                <h4 class="text-white text-sm font-bold truncate max-w-[150px]">${item.name}</h4>
+                                <p class="text-primary text-xs font-semibold">Rp ${item.price.toLocaleString('id-ID')}</p>
+                            </div>
+                            <div class="flex items-center space-x-3">
+                                <button type="button" onclick="updateQty(${item.id}, -1)" class="bg-cardBg hover:bg-gray-600 text-white w-6 h-6 rounded flex items-center justify-center transition">-</button>
+                                <span class="text-white text-sm font-bold w-4 text-center">${item.qty}</span>
+                                <button type="button" onclick="updateQty(${item.id}, 1)" class="bg-cardBg hover:bg-gray-600 text-white w-6 h-6 rounded flex items-center justify-center transition">+</button>
+                            </div>
+                        </div>
+                    `;
+                });
+                
+                if(cartBadge) {
+                    cartBadge.innerText = totalItemsCount;
+                    cartBadge.classList.remove('hidden');
+                }
+            }
+
+            totalDisplay.innerText = 'Rp ' + total.toLocaleString('id-ID');
+            cartDataInput.value = JSON.stringify(cart);
+        }
+
+        document.getElementById('checkoutForm')?.addEventListener('submit', function(e) {
+            if(cart.length === 0) {
+                e.preventDefault();
+                alert('Keranjang belanja Anda masih kosong!');
+            }
+        });
+
+        document.addEventListener('DOMContentLoaded', renderCart);
     </script>
 </body>
 </html>

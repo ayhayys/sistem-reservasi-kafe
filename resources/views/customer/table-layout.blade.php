@@ -39,7 +39,7 @@
     <div class="bg-cardBg border border-borderDark rounded-xl p-8 max-w-4xl mx-auto">
         <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
             @if(count($tables) > 0)
-                @foreach($tables as$table)
+                @foreach($tables as $table)
                     @php
                         $isBooked = in_array($table->id,$reservedTableIds);
                         $bgColor =$isBooked ? 'bg-red-500 opacity-60 cursor-not-allowed' : 'bg-green-500 hover:bg-green-600 cursor-pointer';
